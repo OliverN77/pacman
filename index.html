@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>PAC-MAN — Arcade Clásico</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="arcade-shell" id="arcade-shell">
+    <header class="hud">
+      <div class="hud-stats">
+        <div class="hud-stat">
+          <span class="hud-label">PUNTUACIÓN</span>
+          <span class="hud-value" id="score">0</span>
+        </div>
+        <div class="hud-stat hud-center">
+          <span class="hud-label">RÉCORD</span>
+          <span class="hud-value accent" id="high-score">0</span>
+        </div>
+        <div class="hud-stat hud-right">
+          <span class="hud-label">NIVEL</span>
+          <span class="hud-value" id="level">1</span>
+        </div>
+      </div>
+
+      <nav class="hud-toolbar" aria-label="Menú rápido del juego">
+        <button class="tool-btn" id="menu-btn" type="button" title="Abrir menú principal (Esc)" aria-label="Abrir menú">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" />
+          </svg>
+          <span class="tool-label">Menú</span>
+        </button>
+
+        <button class="tool-btn" id="home-btn" type="button" title="Ir a la pantalla de inicio" aria-label="Pantalla de inicio">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path d="M12 3l9 8h-3v9h-5v-6H11v6H6v-9H3l9-8z" />
+          </svg>
+          <span class="tool-label">Inicio</span>
+        </button>
+
+        <button class="tool-btn" id="settings-btn" type="button" title="Abrir ajustes del juego" aria-label="Ajustes">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.39.96a7.07 7.07 0 00-1.63-.94l-.36-2.54a.49.49 0 00-.49-.42h-3.84a.49.49 0 00-.49.42l-.36 2.54c-.58.23-1.13.55-1.63.94l-2.39-.96a.5.5 0 00-.6.22L2.71 8.84a.5.5 0 00.12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32a.5.5 0 00.6.22l2.39-.96c.5.39 1.05.71 1.63.94l.36 2.54a.49.49 0 00.49.42h3.84a.49.49 0 00.49-.42l.36-2.54c.58-.23 1.13-.55 1.63-.94l2.39.96a.5.5 0 00.6-.22l1.92-3.32a.5.5 0 00-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1112 8.5a3.5 3.5 0 010 7z" />
+          </svg>
+          <span class="tool-label">Ajustes</span>
+        </button>
+
+        <button class="tool-btn mobile-toggle-btn" id="mobile-btn" type="button" title="Activar o desactivar modo móvil" aria-pressed="false" aria-label="Jugar en modo móvil">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path d="M16 1H8C6.34 1 5 2.34 5 4v16c0 1.66 1.34 3 3 3h8c1.66 0 3-1.34 3-3V4c0-1.66-1.34-3-3-3zm-4 20.5a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm5-4.5H7V4h10v13z" />
+          </svg>
+          <span class="tool-label">Móvil</span>
+        </button>
+
+        <div class="hud-spacer"></div>
+
+        <button class="icon-btn" id="pause-btn" type="button" title="Pausar (P / Espacio)" aria-label="Pausar juego">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="4" width="4" height="16" rx="1" />
+            <rect x="14" y="4" width="4" height="16" rx="1" />
+          </svg>
+        </button>
+
+        <button class="icon-btn" id="mute-btn" type="button" title="Silenciar / Activar sonido (M)" aria-label="Activar o silenciar sonido">
+          <svg class="icon-sound-on" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+          </svg>
+          <svg class="icon-sound-off" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true">
+            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+          </svg>
+        </button>
+      </nav>
+    </header>
+
+    <div class="play-area" id="play-area">
+      <main class="stage-wrapper" id="stage-wrapper">
+        <div class="cabinet-bezel" id="cabinet-bezel">
+          <canvas id="game-canvas" width="560" height="620" aria-label="Tablero del juego Pac-Man"></canvas>
+          <div class="crt-scanlines" id="crt-scanlines" aria-hidden="true"></div>
+
+          <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+            <!-- Vista Principal: Inicio / Menú de Pausa / Game Over -->
+            <div class="overlay-card" id="view-main">
+              <p class="overlay-kicker" id="overlay-kicker">EDICIÓN ARCADE</p>
+              <h1 class="overlay-title" id="overlay-title">PAC-MAN</h1>
+              <p class="overlay-subtitle" id="overlay-subtitle">Come todos los puntos del laberinto y evita a los fantasmas.</p>
+
+              <div class="ghost-cast" id="overlay-extra">
+                <div class="cast-row">
+                  <span class="ghost-dot red"></span>
+                  <span class="cast-name">BLINKY</span>
+                  <span class="cast-role">Perseguidor</span>
+                </div>
+                <div class="cast-row">
+                  <span class="ghost-dot pink"></span>
+                  <span class="cast-name">PINKY</span>
+                  <span class="cast-role">Emboscador</span>
+                </div>
+                <div class="cast-row">
+                  <span class="ghost-dot cyan"></span>
+                  <span class="cast-name">INKY</span>
+                  <span class="cast-role">Estratega</span>
+                </div>
+                <div class="cast-row">
+                  <span class="ghost-dot orange"></span>
+                  <span class="cast-name">CLYDE</span>
+                  <span class="cast-role">Impredecible</span>
+                </div>
+              </div>
+
+              <div class="menu-stack">
+                <button class="primary-btn" id="start-btn" type="button">JUGAR</button>
+                <button class="secondary-btn hidden" id="restart-btn" type="button">REINICIAR PARTIDA</button>
+                <div class="menu-row">
+                  <button class="secondary-btn" id="overlay-settings-btn" type="button">⚙ AJUSTES</button>
+                  <button class="secondary-btn" id="overlay-mobile-btn" type="button">📱 MODO MÓVIL</button>
+                </div>
+                <button class="ghost-btn hidden" id="overlay-home-btn" type="button">← VOLVER AL INICIO</button>
+              </div>
+
+              <p class="overlay-hint" id="overlay-hint">Flechas o WASD · P / Espacio pausa · Esc menú · M sonido</p>
+            </div>
+
+            <!-- Vista de Ajustes -->
+            <div class="overlay-card settings-card hidden" id="view-settings" aria-label="Ajustes del juego">
+              <div class="settings-header">
+                <div>
+                  <p class="overlay-kicker">CONFIGURACIÓN</p>
+                  <h2 class="settings-title">AJUSTES</h2>
+                </div>
+                <button class="icon-btn" id="settings-close-btn" type="button" title="Cerrar ajustes" aria-label="Cerrar ajustes">✕</button>
+              </div>
+
+              <div class="settings-body">
+                <div class="setting-group">
+                  <span class="setting-label">Dificultad</span>
+                  <div class="segmented" data-setting="difficulty" role="radiogroup" aria-label="Dificultad">
+                    <button type="button" class="seg-btn" data-value="easy">Fácil</button>
+                    <button type="button" class="seg-btn" data-value="normal">Normal</button>
+                    <button type="button" class="seg-btn" data-value="hard">Difícil</button>
+                  </div>
+                </div>
+
+                <div class="setting-group">
+                  <span class="setting-label">Velocidad del juego</span>
+                  <div class="segmented" data-setting="speed" role="radiogroup" aria-label="Velocidad">
+                    <button type="button" class="seg-btn" data-value="slow">Lenta</button>
+                    <button type="button" class="seg-btn" data-value="normal">Normal</button>
+                    <button type="button" class="seg-btn" data-value="fast">Rápida</button>
+                  </div>
+                </div>
+
+                <div class="setting-group">
+                  <span class="setting-label">Vidas iniciales <small class="setting-note">(próxima partida)</small></span>
+                  <div class="segmented" data-setting="startingLives" role="radiogroup" aria-label="Vidas iniciales">
+                    <button type="button" class="seg-btn" data-value="1">1</button>
+                    <button type="button" class="seg-btn" data-value="3">3</button>
+                    <button type="button" class="seg-btn" data-value="5">5</button>
+                  </div>
+                </div>
+
+                <div class="setting-group">
+                  <span class="setting-label">Tema del laberinto</span>
+                  <div class="segmented" data-setting="theme" role="radiogroup" aria-label="Tema del laberinto">
+                    <button type="button" class="seg-btn" data-value="classic">Azul</button>
+                    <button type="button" class="seg-btn" data-value="cyber">Cian</button>
+                    <button type="button" class="seg-btn" data-value="neon">Púrpura</button>
+                  </div>
+                </div>
+
+                <div class="setting-group">
+                  <div class="setting-row-between">
+                    <label class="setting-label" for="setting-volume">Volumen</label>
+                    <span class="setting-val" id="setting-volume-val">70%</span>
+                  </div>
+                  <input class="range-input" id="setting-volume" type="range" min="0" max="100" step="5" value="70" />
+                </div>
+
+                <div class="setting-toggles">
+                  <label class="toggle-row">
+                    <span>Efecto CRT</span>
+                    <input type="checkbox" id="setting-crt" checked />
+                    <span class="toggle-pill" aria-hidden="true"></span>
+                  </label>
+
+                  <label class="toggle-row">
+                    <span>Modo móvil (pantalla adaptada + D-Pad)</span>
+                    <input type="checkbox" id="setting-mobile" />
+                    <span class="toggle-pill" aria-hidden="true"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="settings-footer">
+                <div class="menu-row">
+                  <button class="ghost-btn compact" id="reset-settings-btn" type="button">Restablecer</button>
+                  <button class="ghost-btn compact danger" id="reset-highscore-btn" type="button">Borrar récord</button>
+                </div>
+                <button class="primary-btn full-width" id="settings-back-btn" type="button">VOLVER</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <div class="touch-deck" id="touch-deck" aria-label="Controles táctiles para móvil">
+        <div class="touch-controls" id="dpad" aria-label="Pad direccional">
+          <button class="dpad-btn dpad-up" type="button" data-dir="UP" aria-label="Arriba">▲</button>
+          <div class="dpad-middle">
+            <button class="dpad-btn dpad-left" type="button" data-dir="LEFT" aria-label="Izquierda">◀</button>
+            <button class="dpad-btn dpad-down" type="button" data-dir="DOWN" aria-label="Abajo">▼</button>
+            <button class="dpad-btn dpad-right" type="button" data-dir="RIGHT" aria-label="Derecha">▶</button>
+          </div>
+        </div>
+
+        <div class="mobile-quick-actions">
+          <button class="mobile-pill-btn" id="mobile-fullscreen-btn" type="button" title="Pantalla completa">⛶ Pantalla</button>
+          <button class="mobile-pill-btn" id="mobile-exit-btn" type="button" title="Salir del modo móvil">✕ Salir móvil</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="status-bar">
+      <div class="status-group">
+        <span class="status-label">VIDAS</span>
+        <div class="lives-display" id="lives-display" aria-label="Vidas restantes"></div>
+      </div>
+      <div class="status-group status-right">
+        <span class="status-label">BONUS</span>
+        <div class="fruit-display" id="fruit-display" aria-label="Fruta del nivel"></div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="audio.js" defer></script>
+  <script src="game.js" defer></script>
+</body>
+</html>
