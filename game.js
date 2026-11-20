@@ -10,6 +10,10 @@
 
   const HIGH_SCORE_KEY = "pacman_vanilla_high_score_v1";
   const SETTINGS_KEY = "pacman_vanilla_settings_v1";
+  const PROGRESS_KEY = "pacman_vanilla_progress_v1";
+
+  const LEVEL_PACK = window.PACMAN_LEVELS;
+  const TOTAL_LEVELS = LEVEL_PACK.TOTAL_LEVELS; // 50
 
   // Ajustes por defecto
   const DEFAULT_SETTINGS = {
@@ -40,43 +44,6 @@
     neon: { stroke: "#c026d3", fill: "#1d072b", glow: "#9333ea", door: "#67e8f9" },
   };
 
-  // Mapa exacto 28x31 (240 puntos pequeños + 4 píldoras de poder = 244)
-  // '#' pared | '.' punto | 'o' píldora poder | '-' puerta casa fantasmas
-  // '=' interior casa fantasmas | ' ' pasillo vacío | 'X' vacío exterior
-  const MAZE_TEMPLATE = [
-    "############################",
-    "#............##............#",
-    "#.####.#####.##.#####.####.#",
-    "#o####.#####.##.#####.####o#",
-    "#.####.#####.##.#####.####.#",
-    "#..........................#",
-    "#.####.##.########.##.####.#",
-    "#.####.##.########.##.####.#",
-    "#......##....##....##......#",
-    "######.##### ## #####.######",
-    "XXXXX#.##### ## #####.#XXXXX",
-    "XXXXX#.##          ##.#XXXXX",
-    "XXXXX#.## ###--### ##.#XXXXX",
-    "######.## #======# ##.######",
-    "      .   #======#   .      ",
-    "######.## #======# ##.######",
-    "XXXXX#.## ######## ##.#XXXXX",
-    "XXXXX#.##          ##.#XXXXX",
-    "XXXXX#.## ######## ##.#XXXXX",
-    "######.## ######## ##.######",
-    "#............##............#",
-    "#.####.#####.##.#####.####.#",
-    "#.####.#####.##.#####.####.#",
-    "#o..##.......  .......##..o#",
-    "###.##.##.########.##.##.###",
-    "###.##.##.########.##.##.###",
-    "#......##....##....##......#",
-    "#.##########.##.##########.#",
-    "#.##########.##.##########.#",
-    "#..........................#",
-    "############################",
-  ];
-
   // Direcciones (orden de desempate clásico de fantasmas: UP, LEFT, DOWN, RIGHT)
   const DIR = {
     NONE: { name: "NONE", x: 0, y: 0 },
@@ -87,20 +54,8 @@
   };
   const GHOST_DIR_ORDER = [DIR.UP, DIR.LEFT, DIR.DOWN, DIR.RIGHT];
 
-  // Casillas especiales donde los fantasmas no pueden girar hacia arriba en Scatter/Chase
-  const NO_UP_TILES = new Set(["12,11", "15,11", "12,23", "15,23"]);
-
-  // Definición de frutas por nivel
-  const FRUITS = [
-    { name: "Cereza", points: 100, color: "#ff2d55", type: "cherry" },
-    { name: "Fresa", points: 300, color: "#ff477e", type: "strawberry" },
-    { name: "Naranja", points: 500, color: "#ff9f1c", type: "orange" },
-    { name: "Manzana", points: 700, color: "#ff3b30", type: "apple" },
-    { name: "Melón", points: 1000, color: "#34d399", type: "melon" },
-    { name: "Estrella", points: 2000, color: "#38bdf8", type: "star" },
-    { name: "Campana", points: 3000, color: "#facc15", type: "bell" },
-    { name: "Llave", points: 5000, color: "#67e8f9", type: "key" },
-  ];
+  // Casillas justo sobre la casa de fantasmas (evita bucles en Scatter/Chase)
+  const NO_UP_TILES = new Set(["12,11", "15,11"]);
 
   // Referencias DOM
   const canvas = document.getElementById("game-canvas");
@@ -138,6 +93,21 @@
 
   const settingsCloseBtn = document.getElementById("settings-close-btn");
   const settingsBackBtn = document.getElementById("settings-back-btn");
+  const tabGeneralBtn = document.getElementById("tab-general-btn");
+  const tabLevelsBtn = document.getElementById("tab-levels-btn");
+  const panelGeneral = document.getElementById("settings-panel-general");
+  const panelLevels = document.getElementById("settings-panel-levels");
+  const openLevelsTabBtn = document.getElementById("open-levels-tab-btn");
+
+  const tabTotalLevelsEl = document.getElementById("tab-total-levels");
+  const settingsTotalLevelsEl = document.getElementById("settings-total-levels");
+  const settingsProgressMetaEl = document.getElementById("settings-progress-meta");
+  const levelsTotalBadgeEl = document.getElementById("levels-total-badge");
+  const levelsDoneBadgeEl = document.getElementById("levels-done-badge");
+  const chapterFiltersEl = document.getElementById("chapter-filters");
+  const levelPreviewBarEl = document.getElementById("level-preview-bar");
+  const levelsGridEl = document.getElementById("levels-grid");
+
   const resetSettingsBtn = document.getElementById("reset-settings-btn");
   const resetHighscoreBtn = document.getElementById("reset-highscore-btn");
   const settingVolumeInput = document.getElementById("setting-volume");
@@ -157,47 +127,52 @@
   canvas.height = CANVAS_H * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  // Caché de laberintos prerrenderizados por tema
+  // Caché de laberintos prerrenderizados por tema y plantilla (10 laberintos x temas)
   const mazeThemeCache = {};
-  const mazeCanvasFlash = createMazeCanvas("#e6f0ff", "#1c2a54", "#93c5fd", "#ffffff");
+  const mazeFlashCache = {};
 
-  function getMazeCanvasForTheme(themeKey) {
-    const key = MAZE_THEMES[themeKey] ? themeKey : "classic";
-    if (!mazeThemeCache[key]) {
-      const t = MAZE_THEMES[key];
-      mazeThemeCache[key] = createMazeCanvas(t.stroke, t.fill, t.glow, t.door);
+  function getMazeCanvas(themeKey, mazeIndex) {
+    const tKey = MAZE_THEMES[themeKey] ? themeKey : "classic";
+    const cacheKey = `${tKey}_${mazeIndex}`;
+    if (!mazeThemeCache[cacheKey]) {
+      const t = MAZE_THEMES[tKey];
+      const rows = LEVEL_PACK.MAZE_BLUEPRINTS[mazeIndex].rows;
+      mazeThemeCache[cacheKey] = createMazeCanvas(rows, t.stroke, t.fill, t.glow, t.door);
     }
-    return mazeThemeCache[key];
+    return mazeThemeCache[cacheKey];
   }
 
-  function isWallTile(c, r) {
+  function getMazeFlashCanvas(mazeIndex) {
+    if (!mazeFlashCache[mazeIndex]) {
+      const rows = LEVEL_PACK.MAZE_BLUEPRINTS[mazeIndex].rows;
+      mazeFlashCache[mazeIndex] = createMazeCanvas(rows, "#e6f0ff", "#1c2a54", "#93c5fd", "#ffffff");
+    }
+    return mazeFlashCache[mazeIndex];
+  }
+
+  function isWallTileInRows(rows, c, r) {
     if (r < 0 || r >= ROWS) return false;
     if (c < 0 || c >= COLS) {
-      // Continuar las paredes superior e inferior del túnel fuera del borde
       return r === 13 || r === 15;
     }
-    return MAZE_TEMPLATE[r][c] === "#";
+    return rows[r][c] === "#";
   }
 
-  function createMazeCanvas(strokeColor, fillColor, glowColor, doorColor = "#ff9ce3") {
+  function createMazeCanvas(rows, strokeColor, fillColor, glowColor, doorColor = "#ff9ce3") {
     const off = document.createElement("canvas");
     off.width = CANVAS_W * dpr;
     off.height = CANVAS_H * dpr;
     const octx = off.getContext("2d");
     octx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Pasada 0: resplandor neón suave
     octx.save();
     octx.shadowColor = glowColor;
     octx.shadowBlur = 10;
-    drawWallPass(octx, 3, strokeColor);
+    drawWallPass(octx, rows, 3, strokeColor);
     octx.restore();
 
-    // Pasada 1: contorno exterior redondeado
-    drawWallPass(octx, 3, strokeColor);
-
-    // Pasada 2: interior oscuro concéntrico (crea líneas dobles uniformes de 3px)
-    drawWallPass(octx, 6, fillColor);
+    drawWallPass(octx, rows, 3, strokeColor);
+    drawWallPass(octx, rows, 6, fillColor);
 
     // Puerta de la casa de fantasmas (fila 12, columnas 13-14)
     octx.save();
@@ -210,24 +185,24 @@
     return off;
   }
 
-  function drawWallPass(targetCtx, margin, color) {
+  function drawWallPass(targetCtx, rows, margin, color) {
     const half = TILE / 2;
     targetCtx.fillStyle = color;
 
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
-        if (!isWallTile(c, r)) continue;
+        if (!isWallTileInRows(rows, c, r)) continue;
         const x = c * TILE;
         const y = r * TILE;
 
-        const t = isWallTile(c, r - 1);
-        const b = isWallTile(c, r + 1);
-        const l = isWallTile(c - 1, r);
-        const ri = isWallTile(c + 1, r);
-        const tl = isWallTile(c - 1, r - 1);
-        const tr = isWallTile(c + 1, r - 1);
-        const bl = isWallTile(c - 1, r + 1);
-        const br = isWallTile(c + 1, r + 1);
+        const t = isWallTileInRows(rows, c, r - 1);
+        const b = isWallTileInRows(rows, c, r + 1);
+        const l = isWallTileInRows(rows, c - 1, r);
+        const ri = isWallTileInRows(rows, c + 1, r);
+        const tl = isWallTileInRows(rows, c - 1, r - 1);
+        const tr = isWallTileInRows(rows, c + 1, r - 1);
+        const bl = isWallTileInRows(rows, c - 1, r + 1);
+        const br = isWallTileInRows(rows, c + 1, r + 1);
 
         drawWallQuadrant(targetCtx, x, y, half, margin, t, l, tl, 1, 1);
         drawWallQuadrant(targetCtx, x + TILE, y, half, margin, t, ri, tr, -1, 1);
@@ -272,7 +247,7 @@
     targetCtx.restore();
   }
 
-  // Persistencia de configuración y récord
+  // Persistencia de configuración, récord y progreso de niveles
   function detectTouchDevice() {
     try {
       const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
@@ -329,7 +304,27 @@
     try {
       localStorage.setItem(HIGH_SCORE_KEY, String(val));
     } catch {
-      // Ignorar si localStorage no está disponible
+      // Ignorar
+    }
+  }
+
+  function loadCompletedLevels() {
+    try {
+      const raw = localStorage.getItem(PROGRESS_KEY);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return new Set();
+      return new Set(arr.filter((n) => Number.isInteger(n) && n >= 1 && n <= TOTAL_LEVELS));
+    } catch {
+      return new Set();
+    }
+  }
+
+  function saveCompletedLevels() {
+    try {
+      localStorage.setItem(PROGRESS_KEY, JSON.stringify([...state.completedLevels].sort((a, b) => a - b)));
+    } catch {
+      // Ignorar
     }
   }
 
@@ -337,12 +332,15 @@
 
   // Estado global del juego
   const state = {
-    mode: "TITLE", // TITLE | READY | PLAYING | EAT_FREEZE | DYING | LEVEL_CLEAR | PAUSED | GAME_OVER
+    mode: "TITLE", // TITLE | READY | PLAYING | EAT_FREEZE | DYING | LEVEL_CLEAR | PAUSED | GAME_OVER | VICTORY
     pausedFromMode: null,
     overlayView: "MAIN", // MAIN | SETTINGS
+    settingsTab: "general", // general | levels
+    selectedChapterFilter: "all",
     score: 0,
     highScore: loadHighScore(),
     level: 1,
+    completedLevels: loadCompletedLevels(),
     lives: settings.startingLives,
     extraLifeAwarded: false,
     grid: [],
@@ -371,6 +369,10 @@
     confirmResetHighScore: false,
   };
 
+  function getCurrentLevelData() {
+    return LEVEL_PACK.getLevel(state.level);
+  }
+
   // Adaptación exacta del tablero al espacio visible (escritorio y móvil)
   function fitStageToScreen() {
     if (!stageWrapper || !cabinetBezel) return;
@@ -392,7 +394,6 @@
   }
 
   function applySettingsToUI() {
-    // Volumen y sonido
     audio.setVolume(settings.volume / 100);
     if (settingVolumeInput) settingVolumeInput.value = String(settings.volume);
     if (settingVolumeVal) settingVolumeVal.textContent = `${settings.volume}%`;
@@ -400,15 +401,12 @@
       muteBtn.classList.toggle("muted", audio.muted || settings.volume === 0);
     }
 
-    // Efecto CRT
     if (crtScanlines) crtScanlines.classList.toggle("off", !settings.crt);
     if (settingCrtInput) settingCrtInput.checked = settings.crt;
 
-    // Tema visual del bisel
     document.body.classList.remove("theme-classic", "theme-cyber", "theme-neon");
     document.body.classList.add(`theme-${settings.theme}`);
 
-    // Modo móvil
     document.body.classList.toggle("mobile-mode", settings.mobileMode);
     if (settingMobileInput) settingMobileInput.checked = settings.mobileMode;
     if (mobileBtn) {
@@ -420,7 +418,6 @@
       overlayMobileBtn.textContent = settings.mobileMode ? "📱 MÓVIL: ON" : "📱 JUGAR EN MÓVIL";
     }
 
-    // Botones segmentados de ajustes
     document.querySelectorAll(".segmented[data-setting]").forEach((group) => {
       const key = group.dataset.setting;
       const currentVal = String(settings[key]);
@@ -431,8 +428,75 @@
       });
     });
 
-    // Recalcular tamaño del tablero tras cambiar el layout
+    if (tabTotalLevelsEl) tabTotalLevelsEl.textContent = String(TOTAL_LEVELS);
+    if (settingsTotalLevelsEl) settingsTotalLevelsEl.textContent = String(TOTAL_LEVELS);
+    if (levelsTotalBadgeEl) levelsTotalBadgeEl.textContent = `Total: ${TOTAL_LEVELS} niveles`;
+
+    updateLevelProgressBadges();
     requestAnimationFrame(fitStageToScreen);
+  }
+
+  function updateLevelProgressBadges() {
+    const completedCount = state.completedLevels.size;
+    if (settingsProgressMetaEl) {
+      settingsProgressMetaEl.textContent = `${completedCount} / ${TOTAL_LEVELS} completados · Actual: Nivel ${state.level}`;
+    }
+    if (levelsDoneBadgeEl) {
+      levelsDoneBadgeEl.textContent = `${completedCount} / ${TOTAL_LEVELS} completados`;
+    }
+  }
+
+  function setSettingsTab(tab) {
+    state.settingsTab = tab === "levels" ? "levels" : "general";
+    const isLevels = state.settingsTab === "levels";
+
+    if (tabGeneralBtn) {
+      tabGeneralBtn.classList.toggle("active", !isLevels);
+      tabGeneralBtn.setAttribute("aria-selected", String(!isLevels));
+    }
+    if (tabLevelsBtn) {
+      tabLevelsBtn.classList.toggle("active", isLevels);
+      tabLevelsBtn.setAttribute("aria-selected", String(isLevels));
+    }
+    if (panelGeneral) panelGeneral.classList.toggle("hidden", isLevels);
+    if (panelLevels) panelLevels.classList.toggle("hidden", !isLevels);
+
+    if (isLevels) {
+      renderLevelsGrid();
+    }
+  }
+
+  function renderLevelsGrid() {
+    if (!levelsGridEl) return;
+    levelsGridEl.innerHTML = "";
+    updateLevelProgressBadges();
+
+    const filter = state.selectedChapterFilter;
+    const list = LEVEL_PACK.LEVEL_CATALOG.filter((lvl) =>
+      filter === "all" ? true : lvl.tierIndex === Number(filter)
+    );
+
+    const curLvl = getCurrentLevelData();
+    if (levelPreviewBarEl) {
+      levelPreviewBarEl.textContent = `Nivel actual: ${curLvl.number}/${TOTAL_LEVELS} · ${curLvl.name} (${curLvl.tierName}) · Bonus: ${curLvl.fruit.name}`;
+    }
+
+    for (const lvl of list) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "level-tile-btn";
+      btn.dataset.level = String(lvl.number);
+      btn.title = `Nivel ${lvl.number}: ${lvl.name} (${lvl.tierName}) · ${lvl.fruit.name}`;
+      btn.setAttribute("aria-label", `Jugar Nivel ${lvl.number}: ${lvl.name}`);
+
+      if (lvl.number === state.level) btn.classList.add("current");
+      if (state.completedLevels.has(lvl.number)) btn.classList.add("completed");
+
+      const checkMark = state.completedLevels.has(lvl.number) ? `<span class="level-tile-check">✓</span>` : "";
+      btn.innerHTML = `${checkMark}<span class="level-tile-num">${lvl.number}</span><span class="level-tile-tier">${lvl.mazeName}</span>`;
+
+      levelsGridEl.appendChild(btn);
+    }
   }
 
   function toggleMobileMode(forceValue = null) {
@@ -440,11 +504,6 @@
     saveSettings();
     applySettingsToUI();
     audio.playUiClick();
-  }
-
-  function getLevelFruit(level) {
-    const idx = Math.min(FRUITS.length - 1, Math.floor((level - 1) === 0 ? 0 : level === 2 ? 1 : (level + 1) / 2));
-    return FRUITS[idx];
   }
 
   function getWaveSchedule(level) {
@@ -460,14 +519,15 @@
         { mode: "CHASE", dur: Infinity },
       ];
     }
+    const scatterShort = Math.max(2, 5 - Math.floor(level / 15));
     return [
-      { mode: "SCATTER", dur: 5 },
+      { mode: "SCATTER", dur: scatterShort },
       { mode: "CHASE", dur: 20 },
-      { mode: "SCATTER", dur: 5 },
-      { mode: "CHASE", dur: 20 },
-      { mode: "SCATTER", dur: 4 },
+      { mode: "SCATTER", dur: scatterShort },
+      { mode: "CHASE", dur: 22 },
+      { mode: "SCATTER", dur: Math.max(1.5, scatterShort - 1) },
       { mode: "CHASE", dur: 25 },
-      { mode: "SCATTER", dur: 3 },
+      { mode: "SCATTER", dur: Math.max(1, scatterShort - 2) },
       { mode: "CHASE", dur: Infinity },
     ];
   }
@@ -477,10 +537,10 @@
     return schedule[Math.min(state.waveIndex, schedule.length - 1)].mode;
   }
 
-  function getFrightenedDuration(level) {
-    const table = [6.5, 5.5, 4.5, 3.5, 2.8, 2.2, 1.8];
+  function getFrightenedDuration() {
+    const lvlData = getCurrentLevelData();
     const preset = DIFFICULTY_PRESETS[settings.difficulty] || DIFFICULTY_PRESETS.normal;
-    return Math.max(1.2, table[Math.min(level - 1, table.length - 1)] * preset.frightenedMul);
+    return Math.max(1.1, lvlData.frightenedDuration * preset.frightenedMul);
   }
 
   function getSpeedMultiplier() {
@@ -488,14 +548,12 @@
   }
 
   function getPacSpeed() {
-    const base = Math.min(9.4, 7.6 + (state.level - 1) * 0.28);
-    return base * getSpeedMultiplier();
+    return getCurrentLevelData().pacSpeed * getSpeedMultiplier();
   }
 
   function getGhostBaseSpeed(ghost) {
     const preset = DIFFICULTY_PRESETS[settings.difficulty] || DIFFICULTY_PRESETS.normal;
-    let base = Math.min(8.8, 7.0 + (state.level - 1) * 0.28) * preset.ghostSpeedMul * getSpeedMultiplier();
-    // Cruise Elroy para Blinky cuando quedan pocos puntos
+    let base = getCurrentLevelData().ghostSpeed * preset.ghostSpeedMul * getSpeedMultiplier();
     if (ghost.id === "blinky" && ghost.mode === "NORMAL") {
       if (state.pelletsRemaining <= 10) base *= 1.1;
       else if (state.pelletsRemaining <= 20) base *= 1.05;
@@ -504,7 +562,8 @@
   }
 
   function resetMazeGrid() {
-    state.grid = MAZE_TEMPLATE.map((row) => row.split(""));
+    const rows = getCurrentLevelData().rows;
+    state.grid = rows.map((row) => row.split(""));
     state.pelletsRemaining = 0;
     state.pelletsEaten = 0;
     for (let r = 0; r < ROWS; r++) {
@@ -531,11 +590,10 @@
       deathProgress: 0,
     };
 
+    const lvlData = getCurrentLevelData();
     const preset = DIFFICULTY_PRESETS[settings.difficulty] || DIFFICULTY_PRESETS.normal;
-    const baseInky = state.level === 1 ? 28 : state.level === 2 ? 12 : 0;
-    const baseClyde = state.level === 1 ? 60 : state.level === 2 ? 32 : 12;
-    const inkyThreshold = Math.round(baseInky * preset.releaseMul);
-    const clydeThreshold = Math.round(baseClyde * preset.releaseMul);
+    const inkyThreshold = Math.round(lvlData.inkyDots * preset.releaseMul);
+    const clydeThreshold = Math.round(lvlData.clydeDots * preset.releaseMul);
 
     state.ghosts = [
       {
@@ -545,7 +603,7 @@
         x: 13.5,
         y: 11,
         dir: DIR.LEFT,
-        mode: "NORMAL", // IN_HOUSE | EXITING | NORMAL | FRIGHTENED | EATEN | ENTERING
+        mode: "NORMAL",
         scatterTarget: { x: 25, y: -2 },
         releaseDots: 0,
         releaseDelay: 0,
@@ -619,8 +677,10 @@
     viewSettingsEl.classList.add("hidden");
     overlayEl.classList.remove("hidden");
 
+    const lvlData = getCurrentLevelData();
+
     if (state.mode === "TITLE") {
-      overlayKicker.textContent = "EDICIÓN ARCADE";
+      overlayKicker.textContent = `EDICIÓN ARCADE · ${TOTAL_LEVELS} NIVELES`;
       overlayTitle.textContent = "PAC-MAN";
       overlaySubtitle.textContent = "Come todos los puntos del laberinto y evita a los fantasmas.";
       overlayExtra.classList.remove("hidden");
@@ -628,26 +688,37 @@
       restartBtn.classList.add("hidden");
       overlayHomeBtn.classList.add("hidden");
       overlayHint.textContent = settings.mobileMode
-        ? "Usa el D-Pad o desliza sobre el tablero para moverte"
-        : "Flechas o WASD · P / Espacio pausa · Esc menú · M sonido";
+        ? "Desliza desde cualquier lugar de la pantalla o usa el D-Pad"
+        : "Flechas o WASD · Desliza en cualquier parte · Esc menú";
     } else if (state.mode === "PAUSED") {
-      overlayKicker.textContent = "MENÚ DE PARTIDA";
+      overlayKicker.textContent = `NIVEL ${state.level} / ${TOTAL_LEVELS} · ${lvlData.name.toUpperCase()}`;
       overlayTitle.textContent = "PAUSA";
-      overlaySubtitle.textContent = `Nivel ${state.level} · Puntuación: ${state.score.toLocaleString("es-ES")}`;
+      overlaySubtitle.textContent = `Puntuación: ${state.score.toLocaleString("es-ES")} · Capítulo ${lvlData.tierName}`;
       overlayExtra.classList.add("hidden");
       startBtn.textContent = "CONTINUAR";
+      restartBtn.textContent = "REINICIAR NIVEL";
       restartBtn.classList.remove("hidden");
       overlayHomeBtn.classList.remove("hidden");
       overlayHint.textContent = "Pulsa P, Espacio o Esc para continuar";
     } else if (state.mode === "GAME_OVER") {
       overlayKicker.textContent = "FIN DE LA PARTIDA";
       overlayTitle.textContent = "GAME OVER";
-      overlaySubtitle.textContent = `Puntuación final: ${state.score.toLocaleString("es-ES")} · Nivel alcanzado: ${state.level}`;
+      overlaySubtitle.textContent = `Puntuación: ${state.score.toLocaleString("es-ES")} · Nivel ${state.level} / ${TOTAL_LEVELS} (${lvlData.name})`;
+      overlayExtra.classList.add("hidden");
+      startBtn.textContent = "REINTENTAR NIVEL";
+      restartBtn.textContent = "EMPEZAR DESDE NIVEL 1";
+      restartBtn.classList.remove("hidden");
+      overlayHomeBtn.classList.remove("hidden");
+      overlayHint.textContent = "También puedes elegir cualquier nivel en Ajustes";
+    } else if (state.mode === "VICTORY") {
+      overlayKicker.textContent = `¡${TOTAL_LEVELS} DE ${TOTAL_LEVELS} NIVELES SUPERADOS!`;
+      overlayTitle.textContent = "¡VICTORIA!";
+      overlaySubtitle.textContent = `¡Has conquistado los ${TOTAL_LEVELS} niveles! Puntuación final: ${state.score.toLocaleString("es-ES")}`;
       overlayExtra.classList.add("hidden");
       startBtn.textContent = "JUGAR DE NUEVO";
       restartBtn.classList.add("hidden");
       overlayHomeBtn.classList.remove("hidden");
-      overlayHint.textContent = "Pulsa Enter para volver a intentarlo";
+      overlayHint.textContent = "Abre Ajustes para repetir cualquiera de los 50 niveles";
     }
   }
 
@@ -667,7 +738,7 @@
     audio.ensureContext();
     audio.playUiClick();
 
-    if (state.mode === "TITLE" || state.mode === "GAME_OVER") {
+    if (state.mode === "TITLE" || state.mode === "GAME_OVER" || state.mode === "VICTORY") {
       renderMainOverlayForMode();
       return;
     }
@@ -679,7 +750,7 @@
     renderMainOverlayForMode();
   }
 
-  function openSettings() {
+  function openSettings(initialTab = "general") {
     audio.ensureContext();
     audio.playUiClick();
 
@@ -694,6 +765,8 @@
     viewMainEl.classList.add("hidden");
     viewSettingsEl.classList.remove("hidden");
     overlayEl.classList.remove("hidden");
+    setSettingsTab(initialTab);
+    updateLevelProgressBadges();
   }
 
   function closeSettings() {
@@ -743,10 +816,11 @@
     }
   }
 
-  function startNewGame() {
+  function startGameAtLevel(levelNumber = 1) {
     audio.ensureContext();
+    const clamped = Math.max(1, Math.min(TOTAL_LEVELS, Math.floor(Number(levelNumber) || 1)));
     state.score = 0;
-    state.level = 1;
+    state.level = clamped;
     state.lives = settings.startingLives;
     state.extraLifeAwarded = false;
     state.pausedFromMode = null;
@@ -756,12 +830,27 @@
     resetActors();
     hideOverlay();
     state.mode = "READY";
-    state.stateTimer = 2.25;
+    state.stateTimer = 2.15;
     audio.playStartJingle();
     updateHUD();
+    updateLevelProgressBadges();
+  }
+
+  function startNewGame() {
+    startGameAtLevel(1);
   }
 
   function startNextLevel() {
+    state.completedLevels.add(state.level);
+    saveCompletedLevels();
+
+    if (state.level >= TOTAL_LEVELS) {
+      state.mode = "VICTORY";
+      updateLevelProgressBadges();
+      renderMainOverlayForMode();
+      return;
+    }
+
     state.level++;
     state.popups = [];
     state.particles = [];
@@ -770,6 +859,7 @@
     state.mode = "READY";
     state.stateTimer = 1.65;
     updateHUD();
+    updateLevelProgressBadges();
   }
 
   function addScore(points, popupX = null, popupY = null, popupColor = "#67e8f9", label = null) {
@@ -810,7 +900,7 @@
   function updateHUD() {
     scoreEl.textContent = state.score.toLocaleString("es-ES");
     highScoreEl.textContent = state.highScore.toLocaleString("es-ES");
-    levelEl.textContent = String(state.level);
+    levelEl.textContent = `${state.level} / ${TOTAL_LEVELS}`;
 
     livesDisplay.innerHTML = "";
     const shownLives = Math.max(0, Math.min(state.lives - 1, 6));
@@ -828,7 +918,7 @@
       livesDisplay.appendChild(empty);
     }
 
-    const fruit = getLevelFruit(state.level);
+    const fruit = getCurrentLevelData().fruit;
     fruitDisplay.innerHTML = `<span class="fruit-badge"><span class="fruit-dot" style="background:${fruit.color};box-shadow:0 0 6px ${fruit.color}"></span>${fruit.name} (${fruit.points})</span>`;
   }
 
@@ -1023,7 +1113,7 @@
     if (state.fruit.active) {
       const distFruit = Math.hypot(p.x - state.fruit.x, p.y - state.fruit.y);
       if (distFruit < 0.7) {
-        const fruit = getLevelFruit(state.level);
+        const fruit = getCurrentLevelData().fruit;
         state.fruit.active = false;
         audio.playEatFruit();
         addScore(fruit.points, state.fruit.x, state.fruit.y, "#ffd800");
@@ -1033,7 +1123,7 @@
   }
 
   function triggerFrightenedMode() {
-    state.frightenedDuration = getFrightenedDuration(state.level);
+    state.frightenedDuration = getFrightenedDuration();
     state.frightenedTimer = state.frightenedDuration;
     state.ghostCombo = 0;
 
@@ -1428,23 +1518,26 @@
     ctx.fillStyle = "#020309";
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
+    const lvlData = getCurrentLevelData();
     const flash =
       state.mode === "LEVEL_CLEAR" &&
       state.stateTimer < 1.7 &&
       Math.floor(state.stateTimer * 7) % 2 === 0;
-    const mazeLayer = flash ? mazeCanvasFlash : getMazeCanvasForTheme(settings.theme);
+    const mazeLayer = flash
+      ? getMazeFlashCanvas(lvlData.mazeIndex)
+      : getMazeCanvas(settings.theme, lvlData.mazeIndex);
     ctx.drawImage(mazeLayer, 0, 0, CANVAS_W, CANVAS_H);
 
     drawPellets();
 
     if (state.fruit.active) {
-      drawFruit(state.fruit.x, state.fruit.y, getLevelFruit(state.level));
+      drawFruit(state.fruit.x, state.fruit.y, lvlData.fruit);
     }
 
     if (state.mode === "READY") {
-      drawCenterBanner("¡LISTO!", "#ffd800");
+      drawCenterBanner(`NIVEL ${state.level} · ¡LISTO!`, "#ffd800");
     } else if (state.mode === "LEVEL_CLEAR") {
-      drawCenterBanner("¡NIVEL SUPERADO!", "#67e8f9");
+      drawCenterBanner(`¡NIVEL ${state.level} SUPERADO!`, "#67e8f9");
     }
 
     if (state.mode === "DYING") {
@@ -1494,7 +1587,7 @@
 
   function drawCenterBanner(text, color) {
     ctx.save();
-    ctx.font = "900 15px 'Cascadia Mono', Consolas, monospace";
+    ctx.font = "900 14px 'Cascadia Mono', Consolas, monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = color;
@@ -1781,13 +1874,32 @@
     }
   }
 
-  // Controles de teclado
-  function setDesiredDirection(dir) {
+  // Dirección deseada y retroalimentación visual en D-Pad
+  let dpadFlashTimer = null;
+
+  function flashDpadDirection(dirName) {
+    if (!dpadEl || !dpadEl.querySelector) return;
+    const btn = dpadEl.querySelector(`[data-dir="${dirName}"]`);
+    if (!btn) return;
+    if (dpadFlashTimer) clearTimeout(dpadFlashTimer);
+    dpadEl.querySelectorAll(".dpad-btn").forEach((b) => b.classList.remove("pressed"));
+    btn.classList.add("pressed");
+    dpadFlashTimer = setTimeout(() => {
+      btn.classList.remove("pressed");
+      dpadFlashTimer = null;
+    }, 150);
+  }
+
+  function setDesiredDirection(dir, showPadFeedback = false) {
     if (!state.pacman) return;
     audio.ensureContext();
     state.pacman.nextDir = dir;
+    if (showPadFeedback && dir.name !== "NONE") {
+      flashDpadDirection(dir.name);
+    }
   }
 
+  // Controles de teclado
   window.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase();
     const isInputTarget = e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA");
@@ -1820,8 +1932,10 @@
       if (state.overlayView === "SETTINGS") return;
       if (isActivePlayMode(state.mode) || state.mode === "PAUSED") {
         togglePause();
-      } else if (state.mode === "TITLE" || state.mode === "GAME_OVER") {
+      } else if (state.mode === "TITLE" || state.mode === "VICTORY") {
         startNewGame();
+      } else if (state.mode === "GAME_OVER") {
+        startGameAtLevel(state.level);
       }
       return;
     }
@@ -1831,8 +1945,10 @@
         closeSettings();
         return;
       }
-      if (state.mode === "TITLE" || state.mode === "GAME_OVER") {
+      if (state.mode === "TITLE" || state.mode === "VICTORY") {
         startNewGame();
+      } else if (state.mode === "GAME_OVER") {
+        startGameAtLevel(state.level);
       } else if (state.mode === "PAUSED") {
         resumeGame();
       }
@@ -1864,7 +1980,7 @@
     if (state.overlayView === "SETTINGS") {
       closeSettings();
     } else {
-      openSettings();
+      openSettings("general");
     }
   });
 
@@ -1890,21 +2006,27 @@
     muteBtn.classList.toggle("muted", isMuted);
   });
 
-  // Botones dentro de la pantalla principal / pausa / game over
+  // Botones dentro de la pantalla principal / pausa / game over / victoria
   startBtn.addEventListener("click", () => {
     if (state.mode === "PAUSED") {
       resumeGame();
+    } else if (state.mode === "GAME_OVER") {
+      startGameAtLevel(state.level);
     } else {
       startNewGame();
     }
   });
 
   restartBtn.addEventListener("click", () => {
-    startNewGame();
+    if (state.mode === "GAME_OVER") {
+      startNewGame();
+    } else {
+      startGameAtLevel(state.level);
+    }
   });
 
   overlaySettingsBtn.addEventListener("click", () => {
-    openSettings();
+    openSettings("general");
   });
 
   overlayMobileBtn.addEventListener("click", () => {
@@ -1916,9 +2038,52 @@
     goToHomeScreen();
   });
 
-  // Eventos del panel de Ajustes
+  // Eventos de Ajustes y Selector de 50 Niveles
   settingsCloseBtn.addEventListener("click", closeSettings);
   settingsBackBtn.addEventListener("click", closeSettings);
+
+  tabGeneralBtn.addEventListener("click", () => {
+    audio.playUiClick();
+    setSettingsTab("general");
+  });
+
+  tabLevelsBtn.addEventListener("click", () => {
+    audio.playUiClick();
+    setSettingsTab("levels");
+  });
+
+  openLevelsTabBtn.addEventListener("click", () => {
+    audio.playUiClick();
+    setSettingsTab("levels");
+  });
+
+  chapterFiltersEl.addEventListener("click", (e) => {
+    const pill = e.target.closest(".chapter-pill");
+    if (!pill) return;
+    state.selectedChapterFilter = pill.dataset.tier || "all";
+    chapterFiltersEl.querySelectorAll(".chapter-pill").forEach((el) => {
+      el.classList.toggle("active", el === pill);
+    });
+    audio.playUiClick();
+    renderLevelsGrid();
+  });
+
+  levelsGridEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".level-tile-btn");
+    if (!btn || !btn.dataset.level) return;
+    const chosenLevel = Number(btn.dataset.level);
+    if (Number.isInteger(chosenLevel) && chosenLevel >= 1 && chosenLevel <= TOTAL_LEVELS) {
+      startGameAtLevel(chosenLevel);
+    }
+  });
+
+  levelsGridEl.addEventListener("mouseover", (e) => {
+    const btn = e.target.closest(".level-tile-btn");
+    if (!btn || !btn.dataset.level || !levelPreviewBarEl) return;
+    const lvl = LEVEL_PACK.getLevel(Number(btn.dataset.level));
+    const status = state.completedLevels.has(lvl.number) ? "✓ Completado" : "Disponible";
+    levelPreviewBarEl.textContent = `Nivel ${lvl.number}/${TOTAL_LEVELS} · ${lvl.name} (${lvl.tierName}) · ${lvl.fruit.name} · ${status}`;
+  });
 
   document.querySelectorAll(".segmented[data-setting]").forEach((group) => {
     group.addEventListener("click", (e) => {
@@ -2010,8 +2175,11 @@
     });
   }
 
-  // Controles táctiles D-Pad con soporte de deslizamiento de pulgar
+  // Controles táctiles D-Pad grande con deslizamiento continuo de pulgar (sin zonas muertas)
   let activeDpadBtn = null;
+  let dpadTracking = false;
+  let dpadStartX = 0;
+  let dpadStartY = 0;
 
   function highlightDpadBtn(btn) {
     if (activeDpadBtn && activeDpadBtn !== btn) {
@@ -2028,59 +2196,163 @@
     const d = DIR[btn.dataset.dir];
     if (d) {
       highlightDpadBtn(btn);
-      setDesiredDirection(d);
+      setDesiredDirection(d, false);
     }
   }
 
   dpadEl.addEventListener("pointerdown", (e) => {
-    const btn = e.target.closest("[data-dir]");
-    if (!btn) return;
     e.preventDefault();
+    dpadTracking = true;
+    dpadStartX = e.clientX;
+    dpadStartY = e.clientY;
     if (dpadEl.setPointerCapture) {
       try { dpadEl.setPointerCapture(e.pointerId); } catch {}
     }
-    triggerDpadFromButton(btn);
-  });
-
-  dpadEl.addEventListener("pointermove", (e) => {
-    if (!activeDpadBtn) return;
-    if (typeof document.elementFromPoint !== "function") return;
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const btn = el && el.closest ? el.closest("[data-dir]") : null;
-    if (btn && btn !== activeDpadBtn) {
+    const btn = e.target && e.target.closest ? e.target.closest("[data-dir]") : null;
+    if (btn) {
       triggerDpadFromButton(btn);
     }
   });
 
+  dpadEl.addEventListener("pointermove", (e) => {
+    if (!dpadTracking) return;
+    if (typeof document.elementFromPoint === "function") {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const btn = el && el.closest ? el.closest("[data-dir]") : null;
+      if (btn) {
+        if (btn !== activeDpadBtn) triggerDpadFromButton(btn);
+        dpadStartX = e.clientX;
+        dpadStartY = e.clientY;
+        return;
+      }
+    }
+    // Si el pulgar arrastra desde el centro del D-Pad, interpretar dirección por desplazamiento
+    const dx = e.clientX - dpadStartX;
+    const dy = e.clientY - dpadStartY;
+    if (Math.hypot(dx, dy) >= 16) {
+      const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? DIR.RIGHT : DIR.LEFT) : (dy > 0 ? DIR.DOWN : DIR.UP);
+      setDesiredDirection(dir, true);
+      dpadStartX = e.clientX;
+      dpadStartY = e.clientY;
+    }
+  });
+
   function clearDpadHighlight() {
+    dpadTracking = false;
     highlightDpadBtn(null);
   }
   dpadEl.addEventListener("pointerup", clearDpadHighlight);
   dpadEl.addEventListener("pointercancel", clearDpadHighlight);
 
-  // Gestos de deslizamiento (swipe) directamente en el canvas
-  let touchStartX = 0;
-  let touchStartY = 0;
-  canvas.addEventListener("touchstart", (e) => {
-    if (!e.touches.length) return;
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }, { passive: true });
+  // ==================== DESLIZAMIENTO GLOBAL EN TODA LA PANTALLA ====================
+  // Permite mover a Pac-Man deslizando el dedo desde CUALQUIER punto de la pantalla,
+  // sin importar dónde esté Pac-Man ni dónde se apoye el dedo.
+  const SWIPE_THRESHOLD = 18;
+  let touchSwipeActive = false;
+  let touchSwipeId = null;
+  let swipeOriginX = 0;
+  let swipeOriginY = 0;
 
-  canvas.addEventListener("touchmove", (e) => {
-    if (!e.touches.length) return;
-    const dx = e.touches[0].clientX - touchStartX;
-    const dy = e.touches[0].clientY - touchStartY;
-    if (Math.hypot(dx, dy) < 22) return;
+  let pointerSwipeActive = false;
+  let pointerSwipeId = null;
+  let ptrOriginX = 0;
+  let ptrOriginY = 0;
 
+  function shouldIgnoreGlobalSwipeTarget(target) {
+    if (!overlayEl.classList.contains("hidden")) return true;
+    if (!target || typeof target.closest !== "function") return false;
+    return Boolean(target.closest("button, input, label, a, .hud-toolbar, #dpad"));
+  }
+
+  function applySwipeDelta(dx, dy) {
+    if (Math.hypot(dx, dy) < SWIPE_THRESHOLD) return false;
     if (Math.abs(dx) > Math.abs(dy)) {
-      setDesiredDirection(dx > 0 ? DIR.RIGHT : DIR.LEFT);
+      setDesiredDirection(dx > 0 ? DIR.RIGHT : DIR.LEFT, true);
     } else {
-      setDesiredDirection(dy > 0 ? DIR.DOWN : DIR.UP);
+      setDesiredDirection(dy > 0 ? DIR.DOWN : DIR.UP, true);
     }
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
+    return true;
+  }
+
+  document.addEventListener("touchstart", (e) => {
+    if (!e.touches || !e.touches.length) return;
+    if (shouldIgnoreGlobalSwipeTarget(e.target)) {
+      touchSwipeActive = false;
+      return;
+    }
+    const t = e.touches[0];
+    touchSwipeActive = true;
+    touchSwipeId = t.identifier;
+    swipeOriginX = t.clientX;
+    swipeOriginY = t.clientY;
   }, { passive: true });
+
+  document.addEventListener("touchmove", (e) => {
+    if (!touchSwipeActive || !e.touches || !e.touches.length) return;
+    if (!overlayEl.classList.contains("hidden")) {
+      touchSwipeActive = false;
+      return;
+    }
+    let t = e.touches[0];
+    for (let i = 0; i < e.touches.length; i++) {
+      if (e.touches[i].identifier === touchSwipeId) {
+        t = e.touches[i];
+        break;
+      }
+    }
+    if (e.cancelable) e.preventDefault();
+
+    const dx = t.clientX - swipeOriginX;
+    const dy = t.clientY - swipeOriginY;
+    if (applySwipeDelta(dx, dy)) {
+      // Reiniciar el origen permite encadenar giros sin levantar el dedo
+      swipeOriginX = t.clientX;
+      swipeOriginY = t.clientY;
+    }
+  }, { passive: false });
+
+  function endTouchSwipe() {
+    touchSwipeActive = false;
+    touchSwipeId = null;
+  }
+  document.addEventListener("touchend", endTouchSwipe, { passive: true });
+  document.addEventListener("touchcancel", endTouchSwipe, { passive: true });
+
+  // Soporte adicional de arrastre con ratón/stylus desde cualquier parte de la pantalla
+  document.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "touch") return; // ya manejado por eventos touch
+    if (e.button !== undefined && e.button !== 0) return;
+    if (shouldIgnoreGlobalSwipeTarget(e.target)) {
+      pointerSwipeActive = false;
+      return;
+    }
+    pointerSwipeActive = true;
+    pointerSwipeId = e.pointerId;
+    ptrOriginX = e.clientX;
+    ptrOriginY = e.clientY;
+  });
+
+  document.addEventListener("pointermove", (e) => {
+    if (!pointerSwipeActive || e.pointerId !== pointerSwipeId) return;
+    if (!overlayEl.classList.contains("hidden")) {
+      pointerSwipeActive = false;
+      return;
+    }
+    const dx = e.clientX - ptrOriginX;
+    const dy = e.clientY - ptrOriginY;
+    if (applySwipeDelta(dx, dy)) {
+      ptrOriginX = e.clientX;
+      ptrOriginY = e.clientY;
+    }
+  });
+
+  function endPointerSwipe(e) {
+    if (e && e.pointerId !== pointerSwipeId) return;
+    pointerSwipeActive = false;
+    pointerSwipeId = null;
+  }
+  document.addEventListener("pointerup", endPointerSwipe);
+  document.addEventListener("pointercancel", endPointerSwipe);
 
   // Observador de tamaño para mantener el laberinto ajustado al 100% de la pantalla
   window.addEventListener("resize", fitStageToScreen);

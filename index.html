@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>PAC-MAN — Arcade Clásico</title>
+  <title>PAC-MAN — Arcade Clásico (50 Niveles)</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -20,7 +20,7 @@
         </div>
         <div class="hud-stat hud-right">
           <span class="hud-label">NIVEL</span>
-          <span class="hud-value" id="level">1</span>
+          <span class="hud-value" id="level">1 / 50</span>
         </div>
       </div>
 
@@ -39,7 +39,7 @@
           <span class="tool-label">Inicio</span>
         </button>
 
-        <button class="tool-btn" id="settings-btn" type="button" title="Abrir ajustes del juego" aria-label="Ajustes">
+        <button class="tool-btn" id="settings-btn" type="button" title="Abrir ajustes y selector de niveles" aria-label="Ajustes">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
             <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.39.96a7.07 7.07 0 00-1.63-.94l-.36-2.54a.49.49 0 00-.49-.42h-3.84a.49.49 0 00-.49.42l-.36 2.54c-.58.23-1.13.55-1.63.94l-2.39-.96a.5.5 0 00-.6.22L2.71 8.84a.5.5 0 00.12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32a.5.5 0 00.6.22l2.39-.96c.5.39 1.05.71 1.63.94l.36 2.54a.49.49 0 00.49.42h3.84a.49.49 0 00.49-.42l.36-2.54c.58-.23 1.13-.55 1.63-.94l2.39.96a.5.5 0 00.6-.22l1.92-3.32a.5.5 0 00-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1112 8.5a3.5 3.5 0 010 7z" />
           </svg>
@@ -80,9 +80,9 @@
           <div class="crt-scanlines" id="crt-scanlines" aria-hidden="true"></div>
 
           <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
-            <!-- Vista Principal: Inicio / Menú de Pausa / Game Over -->
+            <!-- Vista Principal: Inicio / Menú de Pausa / Game Over / Victoria -->
             <div class="overlay-card" id="view-main">
-              <p class="overlay-kicker" id="overlay-kicker">EDICIÓN ARCADE</p>
+              <p class="overlay-kicker" id="overlay-kicker">EDICIÓN ARCADE · 50 NIVELES</p>
               <h1 class="overlay-title" id="overlay-title">PAC-MAN</h1>
               <p class="overlay-subtitle" id="overlay-subtitle">Come todos los puntos del laberinto y evita a los fantasmas.</p>
 
@@ -111,28 +111,43 @@
 
               <div class="menu-stack">
                 <button class="primary-btn" id="start-btn" type="button">JUGAR</button>
-                <button class="secondary-btn hidden" id="restart-btn" type="button">REINICIAR PARTIDA</button>
+                <button class="secondary-btn hidden" id="restart-btn" type="button">REINICIAR NIVEL</button>
                 <div class="menu-row">
                   <button class="secondary-btn" id="overlay-settings-btn" type="button">⚙ AJUSTES</button>
-                  <button class="secondary-btn" id="overlay-mobile-btn" type="button">📱 MODO MÓVIL</button>
+                  <button class="secondary-btn" id="overlay-mobile-btn" type="button">📱 JUGAR EN MÓVIL</button>
                 </div>
                 <button class="ghost-btn hidden" id="overlay-home-btn" type="button">← VOLVER AL INICIO</button>
               </div>
 
-              <p class="overlay-hint" id="overlay-hint">Flechas o WASD · P / Espacio pausa · Esc menú · M sonido</p>
+              <p class="overlay-hint" id="overlay-hint">Flechas o WASD · Desliza en cualquier parte · Esc menú</p>
             </div>
 
-            <!-- Vista de Ajustes -->
+            <!-- Vista de Ajustes + Selector de 50 Niveles -->
             <div class="overlay-card settings-card hidden" id="view-settings" aria-label="Ajustes del juego">
               <div class="settings-header">
                 <div>
-                  <p class="overlay-kicker">CONFIGURACIÓN</p>
+                  <p class="overlay-kicker">CONFIGURACIÓN Y NIVELES</p>
                   <h2 class="settings-title">AJUSTES</h2>
                 </div>
                 <button class="icon-btn" id="settings-close-btn" type="button" title="Cerrar ajustes" aria-label="Cerrar ajustes">✕</button>
               </div>
 
-              <div class="settings-body">
+              <div class="settings-tabs" role="tablist" aria-label="Secciones de ajustes">
+                <button class="tab-btn active" id="tab-general-btn" type="button" role="tab" aria-selected="true" data-tab="general">⚙ General</button>
+                <button class="tab-btn" id="tab-levels-btn" type="button" role="tab" aria-selected="false" data-tab="levels">🗺 Niveles (<span id="tab-total-levels">50</span>)</button>
+              </div>
+
+              <!-- Pestaña General -->
+              <div class="settings-body" id="settings-panel-general" role="tabpanel">
+                <div class="levels-summary-banner">
+                  <div>
+                    <span class="summary-kicker">CAMPAÑA ARCADE</span>
+                    <strong class="summary-title"><span id="settings-total-levels">50</span> niveles disponibles</strong>
+                    <span class="summary-meta" id="settings-progress-meta">0 / 50 completados · Actual: Nivel 1</span>
+                  </div>
+                  <button class="secondary-btn compact-cta" id="open-levels-tab-btn" type="button">Elegir nivel →</button>
+                </div>
+
                 <div class="setting-group">
                   <span class="setting-label">Dificultad</span>
                   <div class="segmented" data-setting="difficulty" role="radiogroup" aria-label="Dificultad">
@@ -185,18 +200,42 @@
                   </label>
 
                   <label class="toggle-row">
-                    <span>Modo móvil (pantalla adaptada + D-Pad)</span>
+                    <span>Modo móvil (controles grandes + ajuste a pantalla)</span>
                     <input type="checkbox" id="setting-mobile" />
                     <span class="toggle-pill" aria-hidden="true"></span>
                   </label>
                 </div>
-              </div>
 
-              <div class="settings-footer">
                 <div class="menu-row">
                   <button class="ghost-btn compact" id="reset-settings-btn" type="button">Restablecer</button>
                   <button class="ghost-btn compact danger" id="reset-highscore-btn" type="button">Borrar récord</button>
                 </div>
+              </div>
+
+              <!-- Pestaña Selector de 50 Niveles -->
+              <div class="settings-body hidden" id="settings-panel-levels" role="tabpanel">
+                <div class="levels-header-info">
+                  <span class="levels-total-badge" id="levels-total-badge">Total: 50 niveles</span>
+                  <span class="levels-done-badge" id="levels-done-badge">0 completados</span>
+                </div>
+
+                <div class="chapter-filters" id="chapter-filters" role="group" aria-label="Filtrar por capítulo">
+                  <button type="button" class="chapter-pill active" data-tier="all">Todos</button>
+                  <button type="button" class="chapter-pill" data-tier="0">1–10</button>
+                  <button type="button" class="chapter-pill" data-tier="1">11–20</button>
+                  <button type="button" class="chapter-pill" data-tier="2">21–30</button>
+                  <button type="button" class="chapter-pill" data-tier="3">31–40</button>
+                  <button type="button" class="chapter-pill" data-tier="4">41–50</button>
+                </div>
+
+                <div class="level-preview-bar" id="level-preview-bar">
+                  Toca cualquier nivel del 1 al 50 para jugar al instante.
+                </div>
+
+                <div class="levels-grid" id="levels-grid" aria-label="Lista de 50 niveles"></div>
+              </div>
+
+              <div class="settings-footer">
                 <button class="primary-btn full-width" id="settings-back-btn" type="button">VOLVER</button>
               </div>
             </div>
@@ -204,18 +243,21 @@
         </div>
       </main>
 
+      <!-- Controles Móviles Grandes y Centrados -->
       <div class="touch-deck" id="touch-deck" aria-label="Controles táctiles para móvil">
-        <div class="touch-controls" id="dpad" aria-label="Pad direccional">
+        <div class="touch-controls-cross" id="dpad" aria-label="Pad direccional táctil">
           <button class="dpad-btn dpad-up" type="button" data-dir="UP" aria-label="Arriba">▲</button>
-          <div class="dpad-middle">
-            <button class="dpad-btn dpad-left" type="button" data-dir="LEFT" aria-label="Izquierda">◀</button>
-            <button class="dpad-btn dpad-down" type="button" data-dir="DOWN" aria-label="Abajo">▼</button>
-            <button class="dpad-btn dpad-right" type="button" data-dir="RIGHT" aria-label="Derecha">▶</button>
+          <button class="dpad-btn dpad-left" type="button" data-dir="LEFT" aria-label="Izquierda">◀</button>
+          <div class="dpad-center" aria-hidden="true">
+            <span class="dpad-center-dot"></span>
           </div>
+          <button class="dpad-btn dpad-right" type="button" data-dir="RIGHT" aria-label="Derecha">▶</button>
+          <button class="dpad-btn dpad-down" type="button" data-dir="DOWN" aria-label="Abajo">▼</button>
         </div>
 
         <div class="mobile-quick-actions">
           <button class="mobile-pill-btn" id="mobile-fullscreen-btn" type="button" title="Pantalla completa">⛶ Pantalla</button>
+          <span class="swipe-tip">Desliza en cualquier parte</span>
           <button class="mobile-pill-btn" id="mobile-exit-btn" type="button" title="Salir del modo móvil">✕ Salir móvil</button>
         </div>
       </div>
@@ -234,6 +276,7 @@
   </div>
 
   <script src="audio.js" defer></script>
+  <script src="levels.js" defer></script>
   <script src="game.js" defer></script>
 </body>
 </html>
